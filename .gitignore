@@ -1,0 +1,10 @@
+data
+plots/
+ba/res
+
+*/.ipynb_checkpoints/
+python_scripts/
+
+*/profileout/
+*.csv
+*.json
