@@ -1182,7 +1182,7 @@ int main(int argc, char** argv) {
   // Create the Graph object 
   Graph graph(device.getTarget());
   popops::addCodelets(graph);
-  graph.addCodelets("bp_codelets.cpp");
+  graph.addCodelets("codelets/bp_codelets.cpp");
 
   // CREATE VARIABLE NODES
 
