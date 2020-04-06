@@ -5,6 +5,7 @@ Implementation of CVPR 2020 paper: [Bundle Adjustment on a Graph Processor](http
 To run bundle adjustment:
 
 ```
+cd ba
 ./bp --dir ../sequences/fr1xyz_1_44_7/
 ```
 
