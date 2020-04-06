@@ -879,7 +879,7 @@ int main(int argc, char** argv) {
   std::vector<unsigned> n_edges_per_lmk = readUnsignedIntVector(dir + "/n_edges_per_lmk.txt");
 
   // Load the data to be fed to the graph through the buffers
-  unsigned cam_dofs = readUnsignedInt("/mnt/data/jortiz/data/" + dir + "/cam_dofs.txt");
+  unsigned cam_dofs = readUnsignedInt(dir + "/cam_dofs.txt");
   std::vector<unsigned> cams_dofs_(n_keyframes, cam_dofs);
   std::vector<unsigned> lmk_dofs_(n_points, 3);
 
@@ -936,7 +936,7 @@ int main(int argc, char** argv) {
   std::vector<unsigned int> cam_weaken_flag_(n_keyframes, 5);
   std::vector<unsigned int> lmk_weaken_flag_(n_points, 5);
 
-  std::vector<unsigned> bad_associations;// = readUnsignedIntVector("/mnt/data/jortiz/data/" + dir + "/bad_associations.txt"); 
+  std::vector<unsigned> bad_associations;// = readUnsignedIntVector(dir + "/bad_associations.txt"); 
 
   // Create mess floats containing priors to be streamed to IPU
   unsigned max_nkfedges = *max_element(n_edges_per_kf.begin(), n_edges_per_kf.end());
