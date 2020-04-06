@@ -2,14 +2,15 @@
 
 Implementation of CVPR 2020 paper: [Bundle Adjustment on a Graph Processor](https://arxiv.org/abs/2003.03134)
 
-To run bundle adjustment:
+## Running Bundle Adjustment
 
 ```
 cd ba
 ./bp --dir ../sequences/fr1xyz_1_44_7/
 ```
 
-For more options:
+For more options
+
  ```
  ./bp --help
  ```
