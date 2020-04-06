@@ -1632,19 +1632,14 @@ int main(int argc, char** argv) {
 
   std::cout << "Sending priors and computing factor potentials.\n";
   engine.run(LINEARISE_PROG);
-  std::cout << "here.\n";
 
   engine.run(READ_PROG);
-
-  std::cout << "here.\n";
-
 
   unsigned data_counter = 0;
   float reproj [2] = {};
   // eval_reproj(reproj, n_edges, active_flag_, data_counter, cam_beliefs_eta_, cam_beliefs_lambda_, lmk_beliefs_eta_, lmk_beliefs_lambda_,
   //                     &measurements_camIDs[0], &measurements_lIDs[0], &measurements_[0], &Ksingle_[0]);
   // cout << "Initial Reprojection error (not parallel): " << reproj[0] << " Cost " << reproj[1] << "\n";
-  std::cout << "here.\n";
 
   eval_reproj_parallel(reproj, n_edges, active_flag_, data_counter, cam_beliefs_eta_, cam_beliefs_lambda_, lmk_beliefs_eta_, lmk_beliefs_lambda_,
                       &measurements_camIDs[0], &measurements_lIDs[0], &measurements_[0], &Ksingle_[0], bad_associations);
