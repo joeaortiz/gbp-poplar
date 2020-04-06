@@ -2,8 +2,8 @@
 #include <cmath>
 // #include <print.h>
 
-#include "codelets/matlib.cpp"
-#include "codelets/bafuncs.cpp"
+#include "matlib.cpp"
+#include "bafuncs.cpp"
 
 using namespace poplar;
 
