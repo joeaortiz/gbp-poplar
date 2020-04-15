@@ -2,6 +2,8 @@
 
 Implementation of CVPR 2020 paper: [Bundle Adjustment on a Graph Processor](https://arxiv.org/abs/2003.03134)
 
+Find the corresponding python implementation [here](https://github.com/joeaortiz/gbp).
+
 ## Running Bundle Adjustment
 
 ```
