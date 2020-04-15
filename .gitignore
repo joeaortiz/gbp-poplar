@@ -10,3 +10,4 @@ python_scripts/
 *.json
 
 ba/bpslam.cpp
+ba/gbp.cpp

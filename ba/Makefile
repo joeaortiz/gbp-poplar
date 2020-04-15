@@ -1,5 +1,10 @@
-bp: bp.cpp
-	g++ --std=c++11 -I /usr/include/eigen3/ bp.cpp -lpoplar -lpopops -lpoplin -lpoputil -ltbb -lboost_program_options -o bp
+ba: ba.cpp
+	g++ --std=c++11 ba.cpp dataio.cpp util.cpp -I /usr/include/eigen3/ -lpoplar -lpopops -lpoplin -lpoputil -ltbb -lboost_program_options -o ba
+
+gbp: gbp.cpp
+	g++ --std=c++11 gbp.cpp dataio.cpp util.cpp -I /usr/include/eigen3/ -lpoplar -lpopops -lpoplin -lpoputil -ltbb -lboost_program_options -o gbp
+
 
 clean:
-	rm -f bp
+	rm -f gbp
+	rm -f ba

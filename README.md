@@ -6,11 +6,12 @@ Implementation of CVPR 2020 paper: [Bundle Adjustment on a Graph Processor](http
 
 ```
 cd ba
-./bp --dir ../sequences/fr1xyz_1_44_7/
+make
+./ba --bal_file ../sequences/fr1xyz_1_44_7-bal.txt
 ```
 
 For more options
 
  ```
- ./bp --help
+ ./ba --help
  ```
