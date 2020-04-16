@@ -9,7 +9,7 @@ Find the corresponding python implementation [here](https://github.com/joeaortiz
 ```
 cd ba
 make
-./ba --bal_file ../sequences/fr1xyz_1_44_7-bal.txt
+./ba --bal_file ../sequences/fr1xyz.txt
 ```
 
 For more options
