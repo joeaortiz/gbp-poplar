@@ -2,7 +2,7 @@
 
 Implementation of CVPR 2020 paper: [Bundle Adjustment on a Graph Processor](https://arxiv.org/abs/2003.03134)
 
-Find the Poplar SDK documentation [here](https://www.graphcore.ai/developer-documentation)
+Find the Poplar SDK documentation [here](https://www.graphcore.ai/developer-documentation).
 
 Find the corresponding python implementation [here](https://github.com/joeaortiz/gbp).
 
