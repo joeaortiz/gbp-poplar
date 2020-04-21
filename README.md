@@ -19,3 +19,16 @@ For more options
  ```
  ./ba --help
  ```
+
+### Citation
+
+If you find our work useful in your research, please consider citing:
+
+```
+@InProceedings{OrtizCVPR2020,
+author = {Ortiz, Joseph and Pupilli, Mark and Leutenegger, Stefan and Davison, Andrew J.},
+title = {Bundle Adjustment on a Graph Processor},
+booktitle = {{Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}},
+year = {2020}
+}
+```
