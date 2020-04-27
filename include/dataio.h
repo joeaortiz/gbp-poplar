@@ -71,7 +71,7 @@ class BALProblem
 // Sets the lambda of the priors to be of the same order of magnitude as 
 // the lambda for the reprojection for numerical stability in the first few 
 // iterations. The priors are subsequently weakened
-void set_prior_lambda(BALProblem bal_problem, std::vector<float> K, 
+void set_prior_lambda(BALProblem& bal_problem, std::vector<float> K, 
                       float reproj_meas_var, 
                       std::vector<float> cam_priors_mean_,
                       std::vector<float>& cam_priors_eta_,

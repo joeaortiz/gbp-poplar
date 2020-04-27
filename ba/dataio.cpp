@@ -51,6 +51,8 @@ bool BALProblem::LoadFile(const char* filename) {
   for (int i = 0; i < num_parameters_; ++i) {
     FscanfOrDie(fptr, "%lf", parameters_ + i);
   }
+
+  fclose(fptr);
   return true;
 }
 
@@ -62,7 +64,7 @@ void BALProblem::FscanfOrDie(FILE *fptr, const char *format, T *value) {
   }
 }
 
-void set_prior_lambda(BALProblem bal_problem, std::vector<float> K, 
+void set_prior_lambda(BALProblem& bal_problem, std::vector<float> K, 
                       float reproj_meas_var, 
                       std::vector<float> cam_priors_mean_,
                       std::vector<float>& cam_priors_eta_,
