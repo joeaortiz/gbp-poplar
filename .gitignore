@@ -12,5 +12,6 @@ python_scripts/
 ba/bpslam.cpp
 ba/gbp.cpp
 ba/ba
+ba/slam
 
 2d-gbp/

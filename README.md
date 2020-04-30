@@ -10,7 +10,7 @@ Find the corresponding python implementation [here](https://github.com/joeaortiz
 
 ```
 cd ba
-make
+make ba
 ./ba --bal_file ../sequences/fr1xyz.txt
 ```
 
@@ -19,6 +19,14 @@ For more options
  ```
  ./ba --help
  ```
+
+## Running SLAM
+
+```
+cd ba
+make slam
+./slam --bal_file ../sequences/fr2robot2.txt 
+```
 
 ### Citation
 

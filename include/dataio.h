@@ -129,3 +129,14 @@ void av_depth_init(float av_depth, unsigned n_keyframes, unsigned n_edges, unsig
                   std::vector<unsigned> measurements_lIDs,
                   std::vector<float> cam_priors_mean_, 
                   std::vector<float>& lmk_priors_mean_);
+
+void create_flags(BALProblem& bal_problem, std::vector<unsigned int>& active_flag_, 
+                  std::vector<unsigned int>& cam_weaken_flag_, 
+                  std::vector<unsigned int>& lmk_weaken_flag_,
+                  std::vector<unsigned int>& lmk_active_flag, int steps);
+
+int update_flags(BALProblem& bal_problem, std::vector<unsigned int>& active_flag_, 
+             std::vector<unsigned int>& lmk_weaken_flag_, 
+             std::vector<unsigned int>& cam_weaken_flag_, 
+             std::vector<unsigned int>& lmk_active_flag, 
+             unsigned steps, unsigned data_counter);

@@ -451,3 +451,59 @@ void av_depth_init(float av_depth, unsigned n_keyframes, unsigned n_edges, unsig
     }
   }
 }
+
+void create_flags(BALProblem& bal_problem, std::vector<unsigned int>& active_flag_, 
+                  std::vector<unsigned int>& cam_weaken_flag_, 
+                  std::vector<unsigned int>& lmk_weaken_flag_,
+                  std::vector<unsigned int>& lmk_active_flag, int steps)
+{  
+  // Begin with first 2 keyframes
+  cam_weaken_flag_[0] = steps;  
+  cam_weaken_flag_[1] = steps;
+
+  for (int i = 0; i < bal_problem.n_edges(); ++i) {
+    if ((bal_problem.camera_index(i) == 0) || (bal_problem.camera_index(i) == 1)) {
+      active_flag_[i] = 1;
+      lmk_weaken_flag_[bal_problem.point_index(i)] = steps;
+    }
+  }
+
+  for (int i=0; i<lmk_weaken_flag_.size(); i++) {
+    lmk_active_flag[i] = lmk_weaken_flag_[i]; 
+  }
+
+}
+
+int update_flags(BALProblem& bal_problem, std::vector<unsigned int>& active_flag_, 
+             std::vector<unsigned int>& lmk_weaken_flag_, 
+             std::vector<unsigned int>& cam_weaken_flag_, 
+             std::vector<unsigned int>& lmk_active_flag, 
+             unsigned steps, unsigned data_counter)
+{
+  for (int i = 0; i < bal_problem.n_edges(); ++i) {
+    if (bal_problem.camera_index(i) == data_counter + 1) {
+      active_flag_[i] = 1;
+    }
+    if (bal_problem.camera_index(i) <= data_counter + 1) {
+      lmk_weaken_flag_[bal_problem.point_index(i)] = steps;
+    }
+  }
+
+  for (int c=0; c < bal_problem.n_keyframes(); ++c) {
+    cam_weaken_flag_[c] = 0;
+  }
+  cam_weaken_flag_[data_counter+1] = steps;
+
+  for (int c = 0; c < bal_problem.n_points(); ++c) {
+    lmk_weaken_flag_[c] -= lmk_active_flag[c];
+    lmk_active_flag[c] += lmk_weaken_flag_[c];
+  }
+
+  int n_new_lmks = 0;
+  for (unsigned i = 0; i < bal_problem.n_points(); ++i) {
+    n_new_lmks += lmk_weaken_flag_[i];
+  }
+  n_new_lmks /= steps;
+  return n_new_lmks;
+}
+

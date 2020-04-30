@@ -374,10 +374,10 @@ vector<ComputeSet> buildComputeMessagesCS(Graph &graph,
 struct Options {
   std::string dir;
   std::string bal_file;
-  int n_iters;
   int nIPUs;
-  int cams_per_tile;
   bool profile;
+  int iters_between_kfs;
+  int cams_per_tile;
   float transnoise;
   float rotnoise;
   float lmktrans_noise;
@@ -403,17 +403,17 @@ Options parseOptions(int argc, char** argv) {
    po::value<std::string>(&options.bal_file)->required(),
    "Set the bal file"
   )
-  ("n_iters",
-   po::value<int>(&options.n_iters)->default_value(1500),
-   "Number of iterations of synchronous GBP"
+  ("ipus",
+   po::value<int>(&options.nIPUs)->default_value(1),
+   "Number of IPU chips to use. NB. Must be a power of 2!"
   )
   ("profile",
    po::value<bool>(&options.profile)->default_value(false),
    "Save profile report after execution"
   )
-  ("ipus",
-   po::value<int>(&options.nIPUs)->default_value(1),
-   "Number of IPU chips to use. NB. Must be a power of 2!"
+  ("iters_between_kfs",
+   po::value<int>(&options.iters_between_kfs)->default_value(700),
+   "Number of GBP iterations between sucessive keyframes."
   )
   ("camspertile",
    po::value<int>(&options.cams_per_tile)->default_value(1),
@@ -477,11 +477,12 @@ Options parseOptions(int argc, char** argv) {
 
 
 int main(int argc, char** argv) {
-  const auto options = parseOptions(argc, argv);
 
+  const auto options = parseOptions(argc, argv);
   const char * f = options.bal_file.c_str();
+
   BALProblem bal_problem;
-  if (!bal_problem.LoadFile(f)) {
+  if (!bal_problem.LoadFile(f)) {  //true for load planes and timestamps
     std::cerr << "ERROR: unable to open file " << f << "\n";
     return 1;
   }
@@ -571,7 +572,7 @@ int main(int argc, char** argv) {
     lmk_scaling_[lID] = exp(-2 / options.steps * log(options.prior_std_weaker_factor));
   }
 
-  std::cout << "Completed loading data!\n";
+  std::cout << "Loaded data onto host!\n";
 
   unsigned cam_dofs = 6;
   std::vector<unsigned> cams_dofs_(n_keyframes, 6);
@@ -583,12 +584,17 @@ int main(int argc, char** argv) {
   std::vector<float> oldmu_(n_edges*(cam_dofs + 3), 0.0);
   std::vector<unsigned> robust_flag_(n_edges, 0);
 
-  // For bundle adjustment set these values
-  cout << "\nBundle Adjustment\n";
-  std::vector<unsigned int> active_flag_(n_edges, 1);
-  std::vector<unsigned int> cam_weaken_flag_(n_keyframes, options.steps);
-  std::vector<unsigned int> lmk_weaken_flag_(n_points, options.steps);
-  std::vector<unsigned> bad_associations;
+  cout << "SLAM\n";
+
+  unsigned steps = static_cast<unsigned>(options.steps);
+  std::vector<unsigned int> active_flag_ (bal_problem.n_edges(), 0);  // edge active flag
+  std::vector<unsigned int> cam_weaken_flag_ (bal_problem.n_keyframes(), 0);
+  std::vector<unsigned int> lmk_weaken_flag_ (bal_problem.n_points(), 0);
+  std::vector<unsigned int> lmk_active_flag (bal_problem.n_points(), 0); 
+  create_flags(bal_problem, active_flag_, cam_weaken_flag_, lmk_weaken_flag_,
+               lmk_active_flag, steps);
+
+  std::vector<unsigned> bad_associations;// = readUnsignedIntVector(dir + "/bad_associations.txt"); 
 
   // Create data buffers for streaming to and from the IPU
   unsigned max_nkfedges = *max_element(n_edges_per_kf.begin(), n_edges_per_kf.end());
@@ -598,16 +604,6 @@ int main(int argc, char** argv) {
   float cam_beliefs_lambda_ [n_keyframes * cam_dofs * cam_dofs] = {};
   float lmk_beliefs_eta_ [n_points * 3] = {};
   float lmk_beliefs_lambda_ [n_points * 3 * 3] = {};
-
-
-  unsigned cam_active_flag_ [n_keyframes] = {};
-  unsigned lmk_active_flag_ [n_points] = {};
-  for (unsigned cID = 0; cID < n_keyframes; ++cID) {
-    cam_active_flag_[cID] += cam_weaken_flag_[cID];
-  }
-  for (unsigned lID = 0; lID < n_points; ++lID) {
-    lmk_active_flag_[lID] += lmk_weaken_flag_[lID];
-  }
 
   std::cout << "\nNumber of keyframe nodes in the graph: " << n_keyframes << '\n';
   std::cout << "Number of landmark nodes in the graph: " << n_points << '\n';
@@ -636,7 +632,7 @@ int main(int argc, char** argv) {
   cout << "Number of tiles used by camera / landmark / factor nodes / total : " << n_cam_tiles << " / " << n_lmk_tiles << " / " << n_factor_tiles << " / " << n_cam_tiles + n_factor_tiles << "\n"; 
 
   // Create the IPU device
-  std::cout << "\nAttaching to IPU device..." << std::endl;
+  std::cout << "\nAttaching to IPU device " << std::endl;
   IPUModel ipuModel;
   auto dm = DeviceManager::createDeviceManager();
   auto hwDevices = dm.getDevices(TargetType::IPU, nIPUs);
@@ -647,12 +643,12 @@ int main(int argc, char** argv) {
       break;
     }
   }
-  std::cout << "Attached to device: " << device.getId() << std::endl;
+  std::cout << "\nAttached to device: " << device.getId() << std::endl;
 
-  if (device.getId()) {
-   std::cout << "Could not find a device\n";
-   exit(-1);
-  }
+  // if (device.getId()) {
+  //  std::cout << "Could not find a device\n";
+  //  exit(-1);
+  // }
 
 
   // Create the Graph object 
@@ -898,8 +894,8 @@ int main(int argc, char** argv) {
   gbp_iter_prog.add(Copy(mu, oldmu));
   gbp_iter_prog.add(Execute(csvec_computemessages[1]));
   gbp_iter_prog.add(prog_ub);
-
-  gbp_iter_prog.add(Copy(cam_messages_eta, pcam_messages_eta)); // Messages from factor node have been used so can be copied to previous message holder
+  // Messages from factor node have been used so can be copied to previous message holder
+  gbp_iter_prog.add(Copy(cam_messages_eta, pcam_messages_eta)); 
   gbp_iter_prog.add(Copy(cam_messages_lambda, pcam_messages_lambda));
   gbp_iter_prog.add(Copy(lmk_messages_eta, plmk_messages_eta)); 
   gbp_iter_prog.add(Copy(lmk_messages_lambda, plmk_messages_lambda));
@@ -910,11 +906,26 @@ int main(int argc, char** argv) {
   read_prog.add(Copy(cam_beliefs_lambda, outstream_cam_beliefs_lambda));
   read_prog.add(Copy(lmk_beliefs_eta, outstream_lmk_beliefs_eta));
   read_prog.add(Copy(lmk_beliefs_lambda, outstream_lmk_beliefs_lambda));
-
   read_prog.add(Copy(damping, outstream_damping));
   read_prog.add(Copy(damping_count, outstream_damping_count));
   read_prog.add(Copy(robust_flag, outstream_robust_flag));
 
+  Sequence read_priors_prog;
+  read_priors_prog.add(Copy(cam_messages_eta.reshape({n_keyframes, max_nkfedges + 1, cam_dofs}).slice({0, 0}, {n_keyframes, 1}), outstream_cam_priors_eta));
+  read_priors_prog.add(Copy(cam_messages_lambda.reshape({n_keyframes, max_nkfedges + 1, cam_dofs*cam_dofs}).slice({0, 0}, {n_keyframes, 1}), outstream_cam_priors_lambda));
+  read_priors_prog.add(Copy(lmk_messages_eta.reshape({n_points, max_nlmkedges + 1, 3}).slice({0, 0}, {n_points, 1}), outstream_lmk_priors_eta));
+  read_priors_prog.add(Copy(lmk_messages_lambda.reshape({n_points, max_nlmkedges + 1, 9}).slice({0, 0}, {n_points, 1}), outstream_lmk_priors_lambda));
+
+  Sequence new_kf_prog;
+  new_kf_prog.add(Copy(instream_damping_count, damping_count));
+  new_kf_prog.add(Copy(instream_cam_priors_eta, cam_messages_eta.reshape({n_keyframes, max_nkfedges + 1, cam_dofs}).slice({0, 0}, {n_keyframes, 1}) ));
+  new_kf_prog.add(Copy(instream_cam_priors_lambda, cam_messages_lambda.reshape({n_keyframes, max_nkfedges + 1, cam_dofs*cam_dofs}).slice({0, 0}, {n_keyframes, 1}) ));
+  new_kf_prog.add(Copy(instream_lmk_priors_eta, lmk_messages_eta.reshape({n_points, max_nlmkedges + 1, 3}).slice({0, 0}, {n_points, 1}) ));
+  new_kf_prog.add(Copy(instream_lmk_priors_lambda, lmk_messages_lambda.reshape({n_points, max_nlmkedges + 1, 9}).slice({0, 0}, {n_points, 1}) ));
+  new_kf_prog.add(Copy(instream_active_flag, active_flag));
+  new_kf_prog.add(Copy(instream_cam_weaken_flag, cam_weaken_flag));
+  new_kf_prog.add(Copy(instream_lmk_weaken_flag, lmk_weaken_flag));
+  new_kf_prog.add(prog_ub);  // Update belief of new nodes
 
   // Create the engine
   OptionFlags engineOpts {
@@ -929,10 +940,12 @@ int main(int argc, char** argv) {
     GBP_PROG,
     WEAKEN_PRIORS,
     READ_PROG,
+    READ_PRIORS,
+    NEW_KEYFRAME,
     NUM_PROGS
   };
   std::vector<poplar::program::Program> progs =
-    {write_prog, linearise_prog, gbp_iter_prog, prog_weaken_prior, read_prog};
+    {write_prog, linearise_prog, gbp_iter_prog, prog_weaken_prior, read_prog, read_priors_prog, new_kf_prog};
 
   Engine engine(graph, progs, engineOpts);
   engine.load(device);
@@ -948,9 +961,9 @@ int main(int argc, char** argv) {
 
   engine.connectStream(instream_cam_scaling, &cam_scaling_[0]);
   engine.connectStream(instream_lmk_scaling, &lmk_scaling_[0]);
-  engine.connectStream(instream_cam_weaken_flag, &cam_weaken_flag_[0], &cam_weaken_flag_[n_keyframes * (n_keyframes -1)]);
-  engine.connectStream(instream_lmk_weaken_flag, &lmk_weaken_flag_[0], &lmk_weaken_flag_[n_points * (n_keyframes - 1)]);
-  engine.connectStream(instream_active_flag, &active_flag_[0], &active_flag_[n_edges * (n_keyframes - 1)]);
+  engine.connectStream(instream_cam_weaken_flag, &cam_weaken_flag_[0]);
+  engine.connectStream(instream_lmk_weaken_flag, &lmk_weaken_flag_[0]);
+  engine.connectStream(instream_active_flag, &active_flag_[0]);
 
   engine.connectStream(instream_cam_priors_eta, &cam_priors_eta_[0]);
   engine.connectStream(instream_cam_priors_lambda, &cam_priors_lambda_[0]);
@@ -976,7 +989,6 @@ int main(int argc, char** argv) {
 
   engine.connectStream(outstream_robust_flag, &robust_flag_[0]);
 
-
   // Run programs
   Engine::TimerTimePoint time0 = engine.getTimeStamp();
   std::cout << "Running program to stream initial data to IPU\n";
@@ -988,18 +1000,51 @@ int main(int argc, char** argv) {
   engine.run(READ_PROG);
 
   float reproj [2] = {};
+  unsigned data_counter = 0;
   unsigned nrobust_edges = 0;
-  unsigned num_relins = 0;
+  int num_relins = 0;
+  int n_new_lmks = 0;
   eval_reprojection_error(reproj, n_edges, active_flag_, cam_beliefs_eta_, 
                           cam_beliefs_lambda_, lmk_beliefs_eta_, lmk_beliefs_lambda_,
                           &measurements_camIDs[0], &measurements_lIDs[0], 
                           &measurements_[0], &Ksingle_[0], bad_associations);
-  cout << "Initial Reprojection error: " << reproj[0] << " Cost " << reproj[1] << "\n";
+  std::cout << "Initial Reprojection error: " << reproj[0] << " Cost " << reproj[1] << "\n";
 
-  cout << "Number of iterations: " << options.n_iters << "\n";
-
+  unsigned niters = (n_keyframes - 1) * options.iters_between_kfs - 1;
   unsigned iter = 0;
-  for (unsigned i = 0; i < (options.n_iters); ++i) {
+  std::cout << "Total number of GBP iterations: " << niters << "\n";
+  std::cout << "GBP iterations between sucessive keyframes: " << options.iters_between_kfs << "\n";
+
+  for (unsigned i = 0; i < (niters); ++i) {
+
+      if ((i+1) % options.iters_between_kfs == 0) {
+        iter = 0;
+        data_counter += 1;  // Number of keyframes = data counter + 2
+
+        n_new_lmks = update_flags(bal_problem, active_flag_, lmk_weaken_flag_, 
+                     cam_weaken_flag_, lmk_active_flag, steps, data_counter);
+
+        std::cout << "\n**********************************************************";
+        std::cout << "\n Adding keyframe " << data_counter + 1;
+        std::cout << "\n Adding " << n_new_lmks << " new landmarks";
+        std::cout << "\n**********************************************************\n\n";
+
+        // Use previous kf for prior on next keyframe
+        engine.run(READ_PRIORS); // Read current priors back to host
+
+        initialise_new_kf(cam_priors_eta_, lmk_priors_eta_, cam_beliefs_eta_, 
+                          cam_beliefs_lambda_, cam_priors_lambda_, lmk_priors_lambda_,
+                          lmk_weaken_flag_, data_counter, n_points);
+
+        for (unsigned i = 0; i < n_edges; ++i) {
+          damping_count_[i] = -15;
+        }
+
+        engine.run(NEW_KEYFRAME);
+        engine.run(READ_PROG);
+
+      }
+
 
     if (((iter+ 1) % 2 == 0) && (iter < options.steps * 2)) {
       cout << "Weakening priors \n";
@@ -1010,23 +1055,26 @@ int main(int argc, char** argv) {
     engine.run(READ_PROG); // Write beliefs out
 
     nrobust_edges = 0;
-    num_relins = 0;
     for (unsigned i = 0; i < n_edges; ++i) {
       nrobust_edges += robust_flag_[i];
     }
+
+    num_relins = 0;
     for (unsigned i = 0; i < n_edges; ++i) {
       if (damping_count_[i] == -8) {
         num_relins += 1;
       }
     }
 
-    eval_reprojection_error(reproj, n_edges, active_flag_, cam_beliefs_eta_, 
+    eval_reprojection_error(reproj, n_edges, active_flag_, cam_beliefs_eta_,
                             cam_beliefs_lambda_, lmk_beliefs_eta_, lmk_beliefs_lambda_,
                             &measurements_camIDs[0], &measurements_lIDs[0], 
                             &measurements_[0], &Ksingle_[0], bad_associations);
-    cout << "Iter " << iter << " // Reprojection error " << reproj[0];
+    cout << "Iters " << options.iters_between_kfs*data_counter + iter;
+    cout << " (since last kf " << iter << ") // Reprojection error " << reproj[0];
     cout << " // Cost " << reproj[1] << " // n relins: " << num_relins;
     cout << " // n robust edges " << nrobust_edges << "\n";
+
 
     if (options.verbose) {
       // Print beliefs that are streamed out 
@@ -1050,6 +1098,7 @@ int main(int argc, char** argv) {
       }
       std::cout << '\n';
     }
+
     iter += 1;
   }
   std::cout << "\n Finished GBP.\n";

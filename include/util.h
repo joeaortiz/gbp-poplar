@@ -13,7 +13,7 @@ Vector3f so3log(Matrix3f R);
 MatrixXf reprojectionJacFn(VectorXf cam, Vector3f lmk, std::vector<float> K_vec);
 
 void eval_reprojection_error(float* reproj, unsigned n_edges, 
-                      std::vector<unsigned int> active_flag, int data_counter,
+                      std::vector<unsigned int> active_flag,
                       float* cam_beliefs_eta_, float* cam_beliefs_lambda_, 
                       float* lmk_beliefs_eta_, float* lmk_beliefs_lambda_,
                       unsigned* measurements_camIDs, unsigned* measurements_lIDs, 
@@ -28,6 +28,13 @@ void update_eta(unsigned n_keyframes, unsigned n_points,
                 std::vector<float> lmk_priors_lambda_,
                 std::vector<float> lmk_priors_mean_,
                 std::vector<float>& lmk_priors_eta_);
+
+// Initialise new keyframe with same pose as current belief of most recent keyframe
+void initialise_new_kf(std::vector<float>& cam_priors_eta_, std::vector<float>& lmk_priors_eta_,
+                       float* cam_beliefs_eta_, float* cam_beliefs_lambda_,
+                       std::vector<float> cam_priors_lambda_, std::vector<float> lmk_priors_lambda_,
+                       std::vector<unsigned int> lmk_weaken_flag_, 
+                       unsigned data_counter, unsigned n_points);
 
 float KL_divergence(VectorXf eta1, VectorXf eta2, MatrixXf lambda1, MatrixXf lambda2);
 

@@ -72,7 +72,7 @@ MatrixXf reprojectionJacFn(VectorXf cam, Vector3f lmk, std::vector<float> K_vec)
 }
 
 void eval_reprojection_error(float* reproj, unsigned n_edges, 
-                      vector<unsigned int> active_flag, int data_counter,
+                      vector<unsigned int> active_flag,
                       float* cam_beliefs_eta_, float* cam_beliefs_lambda_, 
                       float* lmk_beliefs_eta_, float* lmk_beliefs_lambda_,
                       unsigned* measurements_camIDs, unsigned* measurements_lIDs, 
@@ -93,7 +93,7 @@ void eval_reprojection_error(float* reproj, unsigned n_edges,
   tbb::task_scheduler_init init(tbb::task_scheduler_init::automatic);
 
   for (unsigned e = 0; e < n_edges; ++e) {
-    n_active_edges += active_flag[data_counter * n_edges +e];
+    n_active_edges += active_flag[e];
   }
 
   tbb::parallel_for(0U, n_active_edges, [&](unsigned e) {
@@ -134,7 +134,7 @@ void eval_reprojection_error(float* reproj, unsigned n_edges,
   // No need to exclude inactive edges while summing as their entries
   // will have been initialised to 0 and then not updated in the loop above:
   for (unsigned e = 0; e < n_edges; ++e) {
-    // n_active_edges += active_flag[data_counter * n_edges +e];
+    // n_active_edges += active_flag[e];
     reproj[0] += reprojNorm[e];
     reproj[1] += reprojSqNorm[e];
   }
@@ -177,6 +177,48 @@ void update_eta(unsigned n_keyframes, unsigned n_points,
     lmk_priors_eta_[lID*3] = eta(0);
     lmk_priors_eta_[lID*3 + 1] = eta(1);
     lmk_priors_eta_[lID*3 + 2] = eta(2);
+  }
+}
+
+void initialise_new_kf(std::vector<float>& cam_priors_eta_, std::vector<float>& lmk_priors_eta_,
+                       float* cam_beliefs_eta_, float* cam_beliefs_lambda_,
+                       std::vector<float> cam_priors_lambda_, std::vector<float> lmk_priors_lambda_,
+                       std::vector<unsigned int> lmk_weaken_flag_, 
+                       unsigned data_counter, unsigned n_points)
+{
+  Matrix<float,6,1> previous_kf_eta = Map<Matrix<float,6,1>>(&cam_beliefs_eta_[data_counter * 6]);
+  Matrix<float,6,6> previous_kf_lam = Map<Matrix<float,6,6>>(&cam_beliefs_lambda_[data_counter * 36]);
+  VectorXf previous_kf_mu = previous_kf_lam.transpose().inverse() * previous_kf_eta;
+  Matrix<float,6,6> new_kf_lam = Map<Matrix<float,6,6>>(&cam_priors_lambda_[(data_counter + 1) * 36]);
+  VectorXf new_kf_eta = new_kf_lam.transpose() * previous_kf_mu;
+  for (unsigned i = 0; i < 6; ++i) {
+    cam_priors_eta_[(data_counter + 1) * 6 + i] = new_kf_eta(i);
+  }
+
+  // Use prior on keyframe for prior on newly observed landmarks
+  Vector3f previous_kf_w;
+  previous_kf_w << previous_kf_mu(3), previous_kf_mu(4), previous_kf_mu(5);
+  Matrix3f previous_kf_R_w2c = eigenso3exp(previous_kf_w);
+  Vector4f loc_cam_frame;
+  loc_cam_frame << 0.0, 0.0, 1.0, 1.0;
+  Matrix4f Tw2c;
+  Tw2c << previous_kf_R_w2c(0,0), previous_kf_R_w2c(0,1), previous_kf_R_w2c(0,2), previous_kf_mu(0),
+          previous_kf_R_w2c(1,0), previous_kf_R_w2c(1,1), previous_kf_R_w2c(1,2), previous_kf_mu(1),
+          previous_kf_R_w2c(2,0), previous_kf_R_w2c(2,1), previous_kf_R_w2c(2,2), previous_kf_mu(2),
+          0.0, 0.0, 0.0, 1.0;
+  Vector4f new_lmk_mu_wf_homog = Tw2c.inverse() * loc_cam_frame;
+  Vector3f new_lmk_mu_wf;
+  new_lmk_mu_wf << new_lmk_mu_wf_homog(0), new_lmk_mu_wf_homog(1), new_lmk_mu_wf_homog(2);
+  Matrix3f lmk_prior_lambda;
+  Vector3f new_lmk_eta;
+  for (unsigned i = 0; i < n_points; ++i) {
+    if (lmk_weaken_flag_[data_counter*n_points + i] == 5) {  // newly observed landmark
+      lmk_prior_lambda = Map<Matrix3f>(&lmk_priors_lambda_[i*9]);
+      new_lmk_eta = lmk_prior_lambda.transpose() * new_lmk_mu_wf;
+      for (unsigned j = 0; j < 3; ++j) {
+        lmk_priors_eta_[i * 3 + j] = new_lmk_eta(j);
+      }
+    }
   }
 }
 
