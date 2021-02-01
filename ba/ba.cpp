@@ -920,7 +920,6 @@ int main(int argc, char** argv) {
   OptionFlags engineOpts {
     {"debug.instrumentCompute", "true"},
     {"debug.computeInstrumentationLevel", "tile"},
-    {"target.workerStackSizeInBytes", "4096"}
   };
 
   enum ProgamIds {
